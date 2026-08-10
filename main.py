@@ -20,7 +20,7 @@ async def insert_file(
     chunk_size: int = 500, 
     overlap_ratio: float = 0.1, 
     subject: str = "", 
-    metadata: dict = None
+    metadata: dict = {}
 ) -> None:
     """
     Take a file pass it in the chunking pipeline and insert it in the database

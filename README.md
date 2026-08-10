@@ -35,23 +35,24 @@ Python dependencies from `pyproject.toml`:
 
 1. Create and activate a Python virtual environment:
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-```
-
-2. Install dependencies using `uv` for async environment management:
+- Install uv tool if not installed
 
 ```bash
-uv install
+sudo apt install uv
 ```
 
-> If you prefer, add a `requirements.txt` file from `pyproject.toml` and install from it.
+2. Install dependencies using `uv` for sync environment management:
+
+```bash
+uv sync
+```
+
 
 ## Configuration
 
 Create a `.env` file in the project root with your database and Ollama settings, for example:
 
+- For example
 ```env
 DB_NAME=postgres
 DB_USER=postgres
@@ -94,8 +95,10 @@ CREATE TABLE chunks (
 
 ### Run the main program
 
+- Select the funtion taht you want to run in main function in main.py file and don't forget await keyword
+- Then run this command
 ```bash
-python main.py
+uv run main.py
 ```
 
 By default, `main.py` runs a simple RAG prompt flow:
