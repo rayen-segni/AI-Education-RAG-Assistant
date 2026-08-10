@@ -1,0 +1,12 @@
+# Python-generated files
+__pycache__/
+
+# Test files
+output.txt
+output.json
+output.md
+test.py
+
+
+# Virtual environments
+.venv
