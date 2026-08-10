@@ -1,7 +1,7 @@
 from pathlib import Path
-from ingestion.loaders import LoaderFactory
-from ingestion.cleaner import TextCleaner
-from ingestion.chunker import TokenChunker
+from app.ingestion.loaders import LoaderFactory
+from app.ingestion.cleaner import TextCleaner
+from app.ingestion.chunker import TokenChunker
 
 
 class DocumentIngestionPipeline:

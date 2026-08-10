@@ -1,5 +1,5 @@
 import httpx
-from config import settings
+from app.config import settings
 
 async def embedding(text: str) -> list[float]:
     """
