@@ -1,16 +1,13 @@
-import asyncio
-from app.config import settings
 from pathlib import Path
+from psycopg.errors import UniqueViolation
+from rich.console import Console
+from rich.progress import track
+
+from app.config import settings
 from app.repository.documents import DocumentsRepository
 from app.ingestion.pipeline import DocumentIngestionPipeline
 from app.services.embedding_service import embedding
 from app.services.llm_service import query_llm
-from psycopg.errors import UniqueViolation
-
-from pathlib import Path
-from rich.console import Console
-from rich.progress import track
-from psycopg.errors import UniqueViolation
 
 # Initialize rich console instance
 console = Console()
@@ -88,7 +85,7 @@ async def semantic_search(query: str, top_k: int):
     return await DocumentsRepository.search_chunks(embeded_vector, top_k)
 
 
-async def chat(msg: str):
+async def chat(msg: str) -> dict[str, list[str]] | None:
     
     """
     RAG Pipeline 
@@ -103,36 +100,40 @@ async def chat(msg: str):
     
     #Extract content in an array
     context_arr = [chunk[2] for chunk in infos]
-    
-    with open("output.json", "w", encoding="utf-8") as f:
-        f.write(str(context_arr))
+
+    sources: list[str] = []
+    subjects: list[str] = []
+    for chunk in infos:
+        sources.append(
+            chunk[4]["source"]
+        )
+
+        subjects.append(
+            chunk[4]["subject"]
+        )
     
     #Prepare text
     context = "\n".join(context_arr)
     
     #Prepare Prompt
-    prompt = f"""
-    Context:
-        {context}
-    
-    These are informations in the context about the user prompt 
-    you can use them as trusted source to help you reply on the prompt bellow.
-    Answer using only the provided context.
-    If information is missing, say so.
-    
-    User prompt:
-        {msg}
-    """
+    system_instruction = (
+            "You are a precise technical AI assistant. "
+            "Answer the user's question using ONLY the provided context below. "
+            "If the information is not present or cannot be directly inferred from the context, "
+            "explicitly state: 'The provided context does not contain sufficient information to answer this question.' "
+            "Do NOT use external knowledge or fabricate details."
+        )
+    user_content = f"Context:\n{context}\n\nUser Question:\n{msg}"
+    messages = [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": user_content}
+        ]
     
     #Prepare payload to Ollama API
     payload = {
         "model": settings.LARGE_LANGUAGE_MODEL,
-        "messages": [
-            {
-                "role": "user", 
-                "content": prompt
-            }
-        ],
+        "messages": messages,
+        "temperature": 0.1,
         "stream": False
     }
     
@@ -144,15 +145,11 @@ async def chat(msg: str):
         print("Error: ", e)
         
     else:
+        output = {
+            "response": response["message"]["content"],
+            "sources": list(set(sources)),
+            "subjects": list(set(subjects))
+        }
         
-        return response["message"]["content"]
+        return output
 
-FILE = Path("documents") / "retriever_augmented_generation.md"
-
-async def main():
-
-    await insert_file(FILE, chunk_size=500, overlap_ratio=0.1, subject="RAG")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())

@@ -2,12 +2,13 @@ from pydantic import BaseModel
 
 
 class QuestionBase(BaseModel):
-    user_question: str
+    pass
 
 
 class QuestionRequest(QuestionBase):
-    pass
+    user_question: str
 
 class QuestionResponse(QuestionBase):
-    sources: list[dict]
+    answer: str
+    metadata: dict
 

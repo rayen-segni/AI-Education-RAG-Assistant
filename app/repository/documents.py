@@ -59,12 +59,12 @@ class DocumentsRepository:
     async def search_chunks(
             query_embedding: list[float],
             top_k: int
-        ) -> list[tuple[int, int, str, float]]:
+        ) -> list[tuple[int, int, str, float, dict]]:
         """
         Search the top-k nearest vectors to the given vector using cosine similarity ordred by distance
         
         Returns:
-            A list of tuples each tuple contains the chunk and the document ID and the content of the chunk (text) 
+            A list of tuples each tuple contains the chunk and the document ID and metadata and the content of the chunk (text) 
             and its cosine distance
         """
         
@@ -72,7 +72,7 @@ class DocumentsRepository:
             async with conn.cursor() as curr:
                 
                 await curr.execute("""
-                    SELECT id, document_id, content, embedding <=> %s::vector AS distance
+                    SELECT id, document_id, content, embedding <=> %s::vector AS distance, metadata
                     FROM chunks
                     ORDER BY distance
                     LIMIT %s;
