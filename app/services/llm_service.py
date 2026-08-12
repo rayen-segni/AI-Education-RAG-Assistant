@@ -1,16 +1,21 @@
-import httpx
+from ollama import AsyncClient
 from app.config import settings
 
-async def query_llm(payload: dict):
+async def query_llm(payload: dict) -> str:
     
-    async with httpx.AsyncClient(timeout=90.0) as client:
-        
-        response = await client.post(
-            f"{settings.OLLAMA_URL}/api/chat",
-            json=payload
-        )
-        
-        response.raise_for_status() 
-        return response.json()
+    client = AsyncClient()
+
+    
+    temp = payload.pop("temperature", None)
+    
+    response = await client.chat(
+        options={
+            "temperature": temp
+        },
+        **payload
+    )
+    
+    # The output content string
+    return response["message"]["content"]
         
 

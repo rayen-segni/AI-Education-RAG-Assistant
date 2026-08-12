@@ -9,6 +9,7 @@ from app.ingestion.pipeline import DocumentIngestionPipeline
 from app.services.embedding_service import embedding
 from app.services.llm_service import query_llm
 
+
 # Initialize rich console instance
 console = Console()
 
@@ -139,17 +140,41 @@ async def chat(msg: str) -> dict[str, list[str]] | None:
     
     try:
         #Send prompt to the LLM
-        response = await query_llm(payload)
+        answer = await query_llm(payload)
         
     except Exception as e:
         print("Error: ", e)
         
     else:
         output = {
-            "response": response["message"]["content"],
-            "sources": list(set(sources)),
-            "subjects": list(set(subjects))
+            "response": answer,
+            "sources": list(dict.fromkeys(sources)),
+            "subjects": list(dict.fromkeys(subjects))
         }
         
         return output
 
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+async def main():
+    print("Hello")
+    files = [
+        f"{BASE_DIR}/documents/async.md",
+        f"{BASE_DIR}/documents/cloud.md",
+        f"{BASE_DIR}/documents/docker.md",
+        f"{BASE_DIR}/documents/fastapi-cli.md",
+        f"{BASE_DIR}/documents/fastapi.md",
+        f"{BASE_DIR}/documents/fastapicloud.md",
+        f"{BASE_DIR}/documents/https.md",
+        f"{BASE_DIR}/documents/server-workers.md",
+        f"{BASE_DIR}/documents/websockets.md",
+    ]
+
+    for file in files:
+        await insert_file(Path(file))
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    asyncio.run(main())

@@ -1,8 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form
 from app.ingestion import storage
-from pathlib import Path
 from app.schemas import document
-from app.services import rag
+from app.services import rag_service
 import json
 from psycopg.errors import UniqueViolation
 
@@ -31,7 +30,7 @@ async def upload_file(
     path = await storage.save_uploaded_file(file)
 
     try: 
-        await rag.insert_file(
+        await rag_service.insert_file(
             path,
             payload.chunk_size,
             overlap_ratio=payload.overlap_size,
