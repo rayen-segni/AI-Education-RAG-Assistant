@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 from app.schemas import question
-from app.services import rag_service
+from app.services import file_service
 
 
 router = APIRouter(
@@ -12,7 +12,7 @@ router = APIRouter(
 @router.post("/chat")
 async def chat(payload: question.QuestionRequest):
 
-    answer = await rag_service.chat(payload.user_question)
+    answer = await file_service.chat(payload.user_question)
 
     if answer:
         response = {

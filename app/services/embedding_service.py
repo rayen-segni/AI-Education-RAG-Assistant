@@ -1,4 +1,5 @@
 from ollama import AsyncClient
+from collections.abc import Sequence
 from app.config import settings
 
 
@@ -15,7 +16,7 @@ that's why we take [0] because embed can accept multiple text at once
 """
 
 
-async def embedding(text: str) -> list[float]:
+async def embedding(text: str | list[str]) -> Sequence[Sequence[float]]:
     """
     Take a text and convert it into a semantic vector
     """
@@ -28,5 +29,5 @@ async def embedding(text: str) -> list[float]:
     )
 
 
-    return list(response.embeddings[0])
+    return response.embeddings
 

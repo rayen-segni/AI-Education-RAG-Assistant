@@ -1,5 +1,0 @@
-Change the embedding call in the RAG service insert file function at the vectorization of chunks,
-to call teh embedding model once then insert in teh database with loop
-
-
-

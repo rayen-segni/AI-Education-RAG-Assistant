@@ -1,10 +1,21 @@
+""""
+Document schemas
+"""
+
 from pydantic import BaseModel
-from fastapi import UploadFile
-
-
 
 class DocumentBase(BaseModel):
     pass
+
+class DocumentMetadata(BaseModel):
+    course: str
+    subject: str
+
+    model_config = {
+        "extra": "allow"
+    }
+
+
 
 class DocumentRequest(DocumentBase):
     chunk_size: int = 500
