@@ -9,7 +9,7 @@ async def retrieval(
     filters: dict | None = None,
     top_k: int = 5,
     threshold: float = 0
-) -> list:
+) -> list[tuple[int, int, str, float, dict]]:
 
     response: Sequence[Sequence[float]] = await embedding_service.embedding(query)
 

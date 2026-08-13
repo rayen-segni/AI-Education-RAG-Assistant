@@ -149,24 +149,28 @@ async def hard_file_insertion():
     BASE_DIR = Path(__file__).resolve().parent.parent.parent
     
     files = [
-        f"{BASE_DIR}/documents/async.md",
-        f"{BASE_DIR}/documents/cloud.md",
-        f"{BASE_DIR}/documents/docker.md",
-        f"{BASE_DIR}/documents/fastapi-cli.md",
-        f"{BASE_DIR}/documents/fastapi.md",
-        f"{BASE_DIR}/documents/fastapicloud.md",
-        f"{BASE_DIR}/documents/https.md",
-        f"{BASE_DIR}/documents/server-workers.md",
-        f"{BASE_DIR}/documents/websockets.md",
+        {"path": f"{BASE_DIR}/documents/async.md", "metadata": {"course": "backend", "subject": "programming"}},
+        {"path": f"{BASE_DIR}/documents/cloud.md", "metadata": {"course": "backend", "subject": "devops"}},
+        {"path": f"{BASE_DIR}/documents/docker.md", "metadata": {"course": "backend", "subject": "devops"}},
+        {"path": f"{BASE_DIR}/documents/fastapi-cli.md", "metadata": {"course": "backend", "subject": "programming"}},
+        {"path": f"{BASE_DIR}/documents/fastapi.md", "metadata": {"course": "backend", "subject": "programming"}},
+        {"path": f"{BASE_DIR}/documents/fastapicloud.md", "metadata": {"course": "backend", "subject": "devops"}},
+        {"path": f"{BASE_DIR}/documents/https.md", "metadata": {"course": "backend", "subject": "network"}},
+        {"path": f"{BASE_DIR}/documents/server-workers.md", "metadata": {"course": "backend", "subject": "devops"}},
+        {"path": f"{BASE_DIR}/documents/websockets.md", "metadata": {"course": "backend", "subject": "network"}},
     ]
 
     for file in files:
-        processor = FileProcessor(Path(file), {})
+        processor = FileProcessor(Path(file["path"]), file["metadata"])
         chunks = processor.chunking_file()
-        await processor.insert_file(chunks)
+        doc_id = await processor.insert_file(chunks)
+        if doc_id is not None:
+            print("Document already exist")
+            await processor.insert_chunks(doc_id, chunks)
+    
 
 async def main():
-    pass
+    await hard_file_insertion()
 
 if __name__ == "__main__":
     import asyncio

@@ -3,7 +3,7 @@ App Entry Point
 """
 
 from fastapi import FastAPI
-from .routers import document, question
+from .routers import document, question, search
 
 app = FastAPI()
 
@@ -17,3 +17,4 @@ def get_root():
 
 app.include_router(document.router)
 app.include_router(question.router)
+app.include_router(search.router)

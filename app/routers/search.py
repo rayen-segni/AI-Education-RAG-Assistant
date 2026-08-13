@@ -13,5 +13,15 @@ router = APIRouter(
 @router.api_route("/", methods=["QUERY"])
 async def search_documents(payload: SearchRequest):
 
-    chunks = await retrieval.retrieval(payload.query, payload.filters.model_dump())
+    filters = payload.filters.model_dump()
+    chunks_rows = await retrieval.retrieval(payload.query, filters)
+
+    response = {
+        "query": payload.query,
+        "filters": filters,
+        "result": chunks_rows
+    }
+
+    return response
+
 

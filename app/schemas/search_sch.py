@@ -11,5 +11,6 @@ class SearchRequest(SearchBase):
     threshold: Optional[int]
 
 class SearchResponse(SearchBase):
-    metadata: DocumentMetadata
-    sources: list[str]
+    filters: list[DocumentMetadata]
+    result: list[str]
+    
