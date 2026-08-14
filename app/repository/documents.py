@@ -86,7 +86,6 @@ class DocumentsRepository:
             vector: list[float],
             filters: dict | None,
             top_k: int,
-            threshold: float
         ) -> list[tuple[int, int, str, float, dict]]:
         """
         Search the top-k nearest vectors to the given vector using cosine similarity
@@ -115,7 +114,6 @@ class DocumentsRepository:
                         ON c.document_id = d.id
                         
                     WHERE d.metadata @> %s::jsonb
-                    AND (1 - (c.embedding <=> %s::vector)) > %s
                     
                     ORDER BY similarity DESC
                     LIMIT %s;
@@ -124,7 +122,6 @@ class DocumentsRepository:
                     vector,
                     filter_payload,
                     vector,
-                    threshold,
                     top_k
                     )
                     )

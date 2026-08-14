@@ -8,11 +8,11 @@ This system automates end-to-end document ingestion (supporting `.txt`, `.md`, a
 
 ## Key Features
 
-- **FastAPI REST Web Service**: Asynchronous endpoints for file uploading, document ingestion, and context-based chat answering.
+- **FastAPI REST Web Service**: Asynchronous endpoints for file uploading (`/document/`), metadata-filtered vector similarity searching (`/search/`), and context-grounded chat answering (`/question/chat`).
 - **Multi-Format Document Ingestion**: Extensible `LoaderFactory` supporting plain text (`.txt`), Markdown (`.md`), and PDF (`.pdf`) documents.
 - **Automated Text Cleaning**: Normalizes Unicode (NFKC), strips control characters and raw HTML, and standardizes whitespace before chunking.
 - **Token-Based Chunking**: `TokenChunker` powered by `tiktoken` (`cl100k_base`) with configurable chunk size and overlap percentage.
-- **PostgreSQL Vector Database**: Stores embeddings and performs similarity searches using `pgvector` (`<=>` cosine distance operator).
+- **PostgreSQL Vector Database**: Stores embeddings and performs cosine similarity searches using `pgvector` (`<=>` cosine distance operator) indexed with HNSW.
 - **Local Ollama Integration**: Asynchronous clients for embedding generation (`nomic-embed-text`) and chat completion (`qwen2.5:0.5b`).
 - **Rich Terminal Feedback**: Real-time progress visualization in terminal during ingestion using `rich`.
 
@@ -38,6 +38,9 @@ This system automates end-to-end document ingestion (supporting `.txt`, `.md`, a
 
 ```
 academic_rag_assistant/
+├── alembic/                     # Database migrations (Alembic)
+│   ├── versions/                # Migration revision scripts
+│   └── env.py                   # Alembic environment configuration
 ├── app/
 │   ├── main.py                  # FastAPI application entry point & router registration
 │   ├── config.py                # Pydantic-settings configuration & database URL resolution
@@ -51,18 +54,23 @@ academic_rag_assistant/
 │   │   └── storage.py           # Uploaded file persistence to storage directory
 │   ├── repository/
 │   │   └── documents.py         # Database CRUD & pgvector cosine similarity search
+│   ├── retrieval/
+│   │   └── retrieval.py         # Embedding query resolution & vector retrieval
 │   ├── routers/
-│   │   ├── documents.py         # POST /document/save endpoint handler
-│   │   └── question.py          # POST /question/chat endpoint handler
+│   │   ├── document.py          # POST /document/ upload endpoint handler
+│   │   ├── question.py          # POST /question/chat RAG chat endpoint handler
+│   │   └── search.py            # QUERY /search/ vector search endpoint handler
 │   ├── schemas/
-│   │   ├── document.py          # Pydantic schemas for document ingestion
-│   │   └── question.py          # Pydantic schemas for RAG query request/response
+│   │   ├── document_sch.py      # Pydantic schemas for document ingestion & metadata
+│   │   ├── question.py          # Pydantic schemas for RAG chat request/response
+│   │   └── search_sch.py        # Pydantic schemas for similarity search
 │   └── services/
 │       ├── embedding_service.py # Async client for Ollama embeddings API
 │       ├── llm_service.py       # Async client for Ollama chat API
-│       └── rag.py               # Core RAG workflow (Ingest, Search, Synthesis)
+│       └── file_service.py      # File processing, chunk insertion & RAG chat pipeline
 ├── documents/                   # Uploaded & sample document storage directory
 ├── .env                         # Environment variables configuration file
+├── alembic.ini                  # Alembic migration configuration
 ├── pyproject.toml               # Project metadata & dependency definitions
 ├── uv.lock                      # Lockfile for reproducible environment state
 └── README.md                    # Project documentation
@@ -104,47 +112,59 @@ LARGE_LANGUAGE_MODEL=[LLM]
 
 ## Database Setup
 
-Execute the following SQL commands on your PostgreSQL database to enable `pgvector` and create the necessary tables:
+### 1. Install pgvector
 
-- Install pgvector from teh github repository and build it:
+Install pgvector from the GitHub repository and build it:
 
 ```bash
-  # Install build tools and PostgreSQL development headers
-  sudo apt update
-  sudo apt install -y build-essential postgresql-server-dev-all git
+# Install build tools and PostgreSQL development headers
+sudo apt update
+sudo apt install -y build-essential postgresql-server-dev-all git
 
-  # Clone and build pgvector
-  cd /tmp
-  git clone --branch v0.8.0 https://github.com/pgvector/pgvector.git
-  cd pgvector
-  make
-  sudo make install
-
+# Clone and build pgvector
+cd /tmp
+git clone --branch v0.8.0 https://github.com/pgvector/pgvector.git
+cd pgvector
+make
+sudo make install
 ```
 
+### 2. Apply Migrations / Create Schema
+
+You can apply the database migrations using Alembic:
+
+```bash
+uv run alembic upgrade head
+```
+
+Or execute the following SQL commands directly on your PostgreSQL database to enable `pgvector` and create the schema:
 
 ```sql
--- Enable the vector extension
+-- 1. Enable the vector extension
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- Documents table
+-- 2. Documents table
 CREATE TABLE IF NOT EXISTS documents (
     id SERIAL PRIMARY KEY,
-    filename TEXT NOT NULL UNIQUE,
-    file_path TEXT NOT NULL,
-    file_type TEXT NOT NULL,
-    total_chunks INTEGER NOT NULL
+    filename VARCHAR NOT NULL UNIQUE,
+    total_chunks INTEGER,
+    metadata JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Vector Chunks table
+-- 3. Vector Chunks table
 CREATE TABLE IF NOT EXISTS chunks (
     id SERIAL PRIMARY KEY,
-    document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    document_id INTEGER REFERENCES documents(id) ON DELETE CASCADE,
     chunk_index INTEGER NOT NULL,
     content TEXT NOT NULL,
-    embedding VECTOR NOT NULL,
-    metadata JSONB NOT NULL
+    embedding VECTOR(768),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 4. HNSW Index for cosine similarity search
+CREATE INDEX IF NOT EXISTS idx_chunks_embedding
+ON chunks USING hnsw (embedding vector_cosine_ops);
 ```
 
 ---
@@ -183,39 +203,99 @@ CREATE TABLE IF NOT EXISTS chunks (
 ---
 
 ### 2. Document Upload & Ingestion
-- **Endpoint**: `POST /document/save`
+- **Endpoint**: `POST /document/`
 - **Content-Type**: `multipart/form-data`
 - **Form Parameters**:
   - `file` (*UploadFile*, required): Document file (`.txt`, `.md`, `.pdf`).
-  - `chunk_size` (*int*, optional): Target token count per chunk (default: `500`).
-  - `overlap_size` (*float*, optional): Overlap fraction between consecutive chunks (default: `0.1`).
-  - `subject` (*str*, optional): Subject tag for topic filtering (default: `""`).
-  - `metadata` (*str*, optional): JSON string of custom metadata (default: `"{}"`).
+  - `metadata` (*str*, optional, default: `"{}"`): JSON string of document metadata. Must satisfy `DocumentMetadata` requirements (`course` and `subject` strings, plus any optional custom key-value pairs).
 
 - **Example `curl` Request**:
   ```bash
-  curl -X POST "http://127.0.0.1:8000/document/save" \
-    -F "file=@documents/retriever_augmented_generation.md" \
-    -F "chunk_size=500" \
-    -F "overlap_size=0.1" \
-    -F "subject=RAG" \
-    -F 'metadata={"author": "AI Team"}'
+  curl -X POST "http://127.0.0.1:8000/document/" \
+    -F "file=@documents/docker.md" \
+    -F 'metadata={"course": "backend", "subject": "devops", "author": "Rayen"}'
   ```
 
 - **HTTP Responses**:
-  - `200 OK`: File processed and chunks stored successfully.
+  - `200 OK`: File processed, chunked, embedded, and stored successfully.
   - `409 Conflict`: File with identical filename already exists in the database.
-  - `500 Internal Server Error`: Processing or storage failure.
+  - `422 Unprocessable Entity`: Metadata JSON string is invalid or missing required fields (`course`, `subject`).
 
 ---
 
-### 3. RAG Chat & Retrieval
-- **Endpoint**: `POST /question/chat`
+### 3. Vector Similarity Search
+- **Endpoint**: `QUERY /search/`
 - **Content-Type**: `application/json`
+- **Description**: Computes the embedding of the input query and performs a top-k cosine similarity search across chunk embeddings in PostgreSQL (`pgvector`), optionally filtering by document metadata JSON fields and similarity threshold.
 - **Request Body**:
   ```json
   {
-    "user_question": "What is Retrieval-Augmented Generation?"
+    "query": "How do containers provide process isolation?",
+    "threshold": 0.5,
+    "filters": {
+      "course": "backend",
+      "subject": "devops"
+    }
+  }
+  ```
+- **Body Fields**:
+  - `query` (*str*, required): Search query string.
+  - `threshold` (*float*, optional, default: `0`): Minimum cosine similarity score (`1 - cosine_distance`).
+  - `filters` (*object*, optional, default: `null`): Document metadata filter (`course`, `subject`, etc.).
+
+- **Example `curl` Request**:
+  ```bash
+  curl -X QUERY "http://127.0.0.1:8000/search/" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "query": "How do containers provide process isolation?",
+      "threshold": 0.5,
+      "filters": {
+        "course": "backend",
+        "subject": "devops"
+      }
+    }'
+  ```
+
+- **Response Format**:
+  ```json
+  {
+    "query": "How do containers provide process isolation?",
+    "filters": {
+      "course": "backend",
+      "subject": "devops"
+    },
+    "result": [
+      [
+        "docker.md",
+        0,
+        "Docker uses Linux cgroups and namespaces to isolate processes...",
+        0.8745,
+        {
+          "course": "backend",
+          "subject": "devops"
+        }
+      ]
+    ]
+  }
+  ```
+- **Result Item Tuple Format**:
+  `[filename, chunk_index, content, similarity_score, document_metadata]`
+
+- **HTTP Responses**:
+  - `200 OK`: Search executed successfully.
+  - `422 Unprocessable Entity`: Invalid request payload format.
+
+---
+
+### 4. RAG Chat & Retrieval
+- **Endpoint**: `POST /question/chat`
+- **Content-Type**: `application/json`
+- **Description**: Performs vector search on the question, retrieves relevant context chunks, and prompts Ollama LLM to synthesize a grounded answer.
+- **Request Body**:
+  ```json
+  {
+    "user_question": "What is Docker and how does containerization work?"
   }
   ```
 
@@ -223,19 +303,19 @@ CREATE TABLE IF NOT EXISTS chunks (
   ```bash
   curl -X POST "http://127.0.0.1:8000/question/chat" \
     -H "Content-Type: application/json" \
-    -d '{"user_question": "What is Retrieval-Augmented Generation?"}'
+    -d '{"user_question": "What is Docker and how does containerization work?"}'
   ```
 
 - **Response Format**:
   ```json
   {
-    "answer": "Retrieval-Augmented Generation (RAG) is an architectural framework...",
+    "answer": "Docker is an open-source platform that enables developers to build, package, and run applications in lightweight containers...",
     "metadata": {
       "sources": [
-        "retriever_augmented_generation.md"
+        "docker.md"
       ],
       "subjects": [
-        "RAG"
+        "devops"
       ]
     }
   }
@@ -249,30 +329,45 @@ CREATE TABLE IF NOT EXISTS chunks (
 
 ## Python Programmatic Usage
 
-You can also run the core ingestion and RAG services directly within Python scripts:
+You can also run the core ingestion, search, and RAG services directly within Python scripts:
 
 ```python
 import asyncio
 from pathlib import Path
-from app.services.rag import insert_file, chat
+from app.services.file_service import FileProcessor, chat
+from app.retrieval.retrieval import retrieval
 
 async def main():
-    # 1. Ingest a document directly
-    doc_path = Path("documents/retriever_augmented_generation.md")
-    await insert_file(
-        file=doc_path,
-        chunk_size=500,
-        overlap_ratio=0.1,
-        subject="AI & RAG",
-        metadata={"author": "Rayen"}
-    )
+    # 1. Ingest and process a document
+    doc_path = Path("documents/docker.md")
+    metadata = {
+        "course": "backend",
+        "subject": "devops",
+        "author": "Rayen"
+    }
 
-    # 2. Query the RAG system
-    result = await chat("How does semantic chunking improve retrieval accuracy?")
-    if result:
-        print("Answer:\n", result["response"])
-        print("Sources:", result["sources"])
-        print("Subjects:", result["subjects"])
+    processor = FileProcessor(file=doc_path, metadata=metadata, chunk_size=500, overlap_ratio=0.1)
+    chunks = processor.chunking_file()
+    doc_id = await processor.insert_file(chunks)
+    if doc_id is not None:
+        await processor.insert_chunks(doc_id, chunks)
+        print(f"Document '{doc_path.name}' inserted with ID {doc_id}")
+
+    # 2. Perform direct vector similarity search
+    search_results = await retrieval(
+        query="How do containers provide process isolation?",
+        filters={"course": "backend", "subject": "devops"},
+        top_k=3,
+        threshold=0.5
+    )
+    print("\nSearch Results:", search_results)
+
+    # 3. Query the RAG chat pipeline
+    chat_result = await chat("Explain how Docker creates container isolation.")
+    if chat_result:
+        print("\nAnswer:\n", chat_result["response"])
+        print("Sources:", chat_result["sources"])
+        print("Subjects:", chat_result["subjects"])
 
 if __name__ == "__main__":
     asyncio.run(main())
