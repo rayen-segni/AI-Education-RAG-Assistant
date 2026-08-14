@@ -7,10 +7,9 @@ class SearchBase(BaseModel):
     query: str
 
 class SearchRequest(SearchBase):
-    filters: DocumentMetadata
-    threshold: Optional[int]
+    filters: Optional[DocumentMetadata] = None
+    threshold: float = 0
 
 class SearchResponse(SearchBase):
     filters: list[DocumentMetadata]
     result: list[str]
-    

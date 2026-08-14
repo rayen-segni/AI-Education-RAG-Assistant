@@ -3,6 +3,7 @@ CRUD Documents
 """
 
 import json
+from psycopg.sql import SQL
 from app.database.vector_db import get_conn
 
 
@@ -23,12 +24,14 @@ class DocumentsRepository:
                 await curr.execute("""
                     INSERT INTO documents
                     (filename, total_chunks, metadata)
-                    VALUES (%s, %s, %s, %s)
+                    VALUES (%s, %s, %s)
                     RETURNING id;
                     """,
-                    (document["filename"],
-                    json.dumps(document["metadata"]),
-                    document["total_chunks"])
+                    (
+                    document["filename"],
+                    document["total_chunks"],
+                    json.dumps(document["metadata"])
+                    )
                 )
 
                 document_id = await curr.fetchone()
@@ -47,7 +50,7 @@ class DocumentsRepository:
 
                 await curr.execute(f"""
                     INSERT INTO chunks
-                    (document_id, chunk_index, content, embedding, metadata)
+                    (document_id, chunk_index, content, embedding)
                     VALUES (%s, %s, %s, %s, %s)
                     """,
                     (
@@ -69,19 +72,21 @@ class DocumentsRepository:
         async with get_conn() as conn:
             async with conn.cursor() as curr:
 
-                await curr.execute(f"""
+                await curr.execute(SQL(
+                    """
                     INSERT INTO chunks
-                    (document_id, chunk_index, content, embedding, metadata)
-                    VALUES {values}
-                    """,
-                    (params)
+                    (document_id, chunk_index, content, embedding)
+                    VALUES {}
+                    """).format(SQL(values)), # type: ignore
+                    params
                     )
 
     @staticmethod
     async def search_chunks(
             vector: list[float],
             filters: dict | None,
-            top_k: int
+            top_k: int,
+            threshold: float
         ) -> list[tuple[int, int, str, float, dict]]:
         """
         Search the top-k nearest vectors to the given vector using cosine similarity
@@ -91,6 +96,9 @@ class DocumentsRepository:
             A list of tuples each tuple contains 
             (filenmae, chunk_index, content, cos_distance, metadata)
         """
+
+        filter_payload = json.dumps(filters or {}) # The case where the filters are null
+        
         async with get_conn() as conn:
             async with conn.cursor() as curr:
 
@@ -99,7 +107,7 @@ class DocumentsRepository:
                         d.filename, 
                         c.chunk_index, 
                         c.content, 
-                        c.embedding <=> %s::vector AS distance, 
+                        (1 - (c.embedding <=> %s::vector)) AS similarity, 
                         d.metadata
                         
                     FROM chunks c
@@ -107,13 +115,18 @@ class DocumentsRepository:
                         ON c.document_id = d.id
                         
                     WHERE d.metadata @> %s::jsonb
-                    ORDER BY distance
+                    AND (1 - (c.embedding <=> %s::vector)) > %s
+                    
+                    ORDER BY similarity DESC
                     LIMIT %s;
                 """,
                     (
                     vector,
-                    json.dumps(filters),
-                    top_k)
+                    filter_payload,
+                    vector,
+                    threshold,
+                    top_k
+                    )
                     )
 
                 return await curr.fetchall()
@@ -128,9 +141,7 @@ def build_chunks_clause(chunks: list[dict]):
         chunks (list[dict]): _description_
     """
     
-    values = "(%s, %s, %s, %s, %s)," * len(chunks)
-    values += "\b" # remove the last "," with backspace character "\b"
-    
+    values = ", ".join(["(%s, %s, %s, %s)"] * len(chunks))
     params = []
     for chunk in chunks:
         param = [
@@ -138,7 +149,6 @@ def build_chunks_clause(chunks: list[dict]):
                 chunk["chunk_index"],
                 chunk["content"],
                 chunk["embedding"],
-                json.dumps(chunk["metadata"])
                 ]
         params.extend(param)
 

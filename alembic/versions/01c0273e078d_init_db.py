@@ -26,12 +26,13 @@ def upgrade() -> None:
     op.execute("""
         CREATE TABLE IF NOT EXISTS documents (
             id SERIAL PRIMARY KEY,
-            filename VARCHAR NOT NULL,
+            filename VARCHAR NOT NULL UNIQUE,
             total_chunks INTEGER,
             metadata JSONB,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
     """)
+
 
     # 3. Create 'chunks' table
     op.execute("""

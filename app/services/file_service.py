@@ -3,6 +3,7 @@ Process File
 """
 from pathlib import Path
 from psycopg.errors import UniqueViolation
+from rich.progress import track 
 
 from app.config import settings
 from app.repository.documents import DocumentsRepository
@@ -72,7 +73,7 @@ class FileProcessor:
             document_id = await DocumentsRepository.add_document(document)
 
         except UniqueViolation as e: # If the document already exists
-            print(f"[red][Error]:[/] {e}")
+            print(f"[Error]: {e}")
         else:
             return document_id
 
@@ -160,13 +161,14 @@ async def hard_file_insertion():
         {"path": f"{BASE_DIR}/documents/websockets.md", "metadata": {"course": "backend", "subject": "network"}},
     ]
 
-    for file in files:
+    for idx, file in track(enumerate(files), description="File Insertion..."):
         processor = FileProcessor(Path(file["path"]), file["metadata"])
         chunks = processor.chunking_file()
         doc_id = await processor.insert_file(chunks)
-        if doc_id is not None:
+        if doc_id is None:
             print("Document already exist")
-            await processor.insert_chunks(doc_id, chunks)
+            continue
+        await processor.insert_chunks(doc_id, chunks) # type: ignore
     
 
 async def main():

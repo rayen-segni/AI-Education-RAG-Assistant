@@ -17,8 +17,10 @@ async def retrieval(
 
     chunks = await DocumentsRepository.search_chunks(vector,
                                                     filters,
-                                                    top_k)
+                                                    top_k,
+                                                    threshold)
 
-    filtred_chunks = [chunk for chunk in chunks if chunk[3] >= threshold]
+    # filtred_chunks = [chunk for chunk in chunks if chunk[3] >= threshold]
 
-    return filtred_chunks
+
+    return chunks

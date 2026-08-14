@@ -1,3 +1,8 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+
 [project]
 name = "Education-RAG-system"
 version = "0.1.0"
@@ -19,3 +24,7 @@ dependencies = [
     "rich>=15.0.0",
     "tiktoken>=0.13.0",
 ]
+
+
+[tool.setuptools.packages.find]
+where = ["."]
