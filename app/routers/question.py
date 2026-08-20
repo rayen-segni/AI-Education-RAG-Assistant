@@ -4,12 +4,12 @@ from app.services import file_service
 
 
 router = APIRouter(
-    prefix="/question",
+    prefix="/ask",
     tags=["Questions"]
 )
 
 
-@router.post("/chat")
+@router.post("/")
 async def chat(payload: question.QuestionRequest):
 
     answer = await file_service.chat(payload.user_question)

@@ -86,7 +86,7 @@ class DocumentsRepository:
             vector: list[float],
             filters: dict | None,
             top_k: int,
-        ) -> list[tuple[int, int, str, float, dict]]:
+        ) -> list[tuple[str, int, str, float, dict]]:
         """
         Search the top-k nearest vectors to the given vector using cosine similarity
         ordred by distance
@@ -105,7 +105,7 @@ class DocumentsRepository:
                     SELECT 
                         d.filename, 
                         c.chunk_index, 
-                        c.content, 
+                        c.content,
                         (1 - (c.embedding <=> %s::vector)) AS similarity, 
                         d.metadata
                         
@@ -121,7 +121,6 @@ class DocumentsRepository:
                     (
                     vector,
                     filter_payload,
-                    vector,
                     top_k
                     )
                     )

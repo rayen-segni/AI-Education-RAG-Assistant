@@ -10,7 +10,7 @@ from app.repository.documents import DocumentsRepository
 from app.ingestion.pipeline import DocumentIngestionPipeline
 from app.services.embedding_service import embedding
 from app.services.llm_service import query_llm
-from app.retrieval import retrieval
+from app.retrieval import retriever
 
 
 # Initialize rich console instance
@@ -87,7 +87,7 @@ async def chat(msg: str) -> dict[str, list[str]] | None:
     """
 
     # Retrieve relevant chunks
-    infos = await retrieval.retrieval(msg)
+    infos = await retriever.retrieval(msg)
 
     #Extract content in an array
     context_arr = [chunk[2] for chunk in infos]

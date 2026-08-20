@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     OLLAMA_URL: str = "http://localhost:11434"
     EMBEDDING_MODEL: str = "nomic-embed-text:latest"
     LARGE_LANGUAGE_MODEL: str = "qwen2.5:0.5b"
+    CROSS_ENCODER_MODEL: str = "cross-encoder/ms-marco-MiniLM-L6-v2"
 
     # Compute PostgreSQL DSN connection string
     @computed_field

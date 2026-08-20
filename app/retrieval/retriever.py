@@ -7,9 +7,9 @@ from app.repository.documents import DocumentsRepository
 async def retrieval(
     query: str,
     filters: dict | None = None,
-    top_k: int = 5,
+    top_k: int = 20,
     threshold: float = 0
-) -> list[tuple[int, int, str, float, dict]]:
+) -> list[tuple[str, int, str, float, dict]]:
 
     response: Sequence[Sequence[float]] = await embedding_service.embedding(query)
 

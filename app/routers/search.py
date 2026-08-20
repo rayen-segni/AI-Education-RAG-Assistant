@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from app.schemas.search_sch import SearchRequest
-from app.retrieval import retrieval
+from app.retrieval import retriever, reranker
 
 
 router = APIRouter(
@@ -18,11 +18,19 @@ async def search_documents(payload: SearchRequest):
         filters = payload.filters.model_dump()
 
 
-    chunks_rows = await retrieval.retrieval(
+    chunks_rows = await retriever.retrieval(
         query=payload.query,
         filters=filters,
-        threshold=payload.threshold
+        top_k=20,
+        threshold=payload.threshold,
         )
+
+    final_chunks = await reranker.reranker(
+        payload.query, 
+        [chunk[2] for chunk in chunks_rows]
+        )
+
+    
 
     response = {
         "query": payload.query,
