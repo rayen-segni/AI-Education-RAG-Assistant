@@ -206,37 +206,40 @@ ON chunks USING hnsw (embedding vector_cosine_ops);
 
 ```mermaid
 flowchart TD
-    subgraph Client["Client / User"]
-        UQ["User Query + Optional conversation_id"]
-        RESP["Grounded Response + Sources + Subjects"]
-    end
-
     subgraph Memory["Conversational State"]
         HIST[("In-Memory Session Store\n(History by conversation_id)")]
     end
 
+    subgraph InputStage["Client Input"]
+        UQ["User Query\n(+ Optional conversation_id)"]
+    end
+
     subgraph Retrieval["Two-Stage Retrieval & Re-ranking"]
-        EMB["Ollama Embeddings API\n(nomic-embed-text)"]
-        VEC[("PostgreSQL + pgvector\n(HNSW Cosine Similarity &lt;=&gt; + JSONB Metadata Filter)")]
-        RERANK["Cross-Encoder Re-ranker\n(ms-marco-MiniLM-L6-v2)"]
+        EMB["1. Ollama Embeddings API\n(nomic-embed-text)"]
+        VEC[("2. PostgreSQL + pgvector\n(HNSW Cosine Similarity &lt;=&gt; + JSONB Metadata Filter)")]
+        RERANK["3. Cross-Encoder Re-ranker\n(ms-marco-MiniLM-L6-v2)"]
     end
 
     subgraph Synthesis["Context Synthesis & Generation"]
-        PROMPT["Context & History Assembler\n(System Prompt + History + Ranked Context)"]
-        LLM["Ollama Chat Completion\n(qwen2.5:0.5b)"]
+        PROMPT["4. Context & History Assembler\n(System Prompt + History + Re-ranked Context)"]
+        LLM["5. Ollama Chat Completion\n(qwen2.5:0.5b)"]
     end
 
-    UQ -->|"1. Raw Query"| EMB
+    subgraph OutputStage["Final Output"]
+        RESP["6. Grounded Answer\n(+ Conversation ID, Sources, Subjects)"]
+    end
+
     UQ -.->|"Session Lookup"| HIST
-    EMB -->|"2. 768-d Embedding"| VEC
-    VEC -->|"3. Top-K Candidate Chunks"| RERANK
-    UQ -->|"Query-Chunk Cross-Encoding"| RERANK
-    RERANK -->|"4. Top Re-ranked Context"| PROMPT
+    UQ -->|"Raw Query"| EMB
     HIST -->|"Past Dialogue Turns"| PROMPT
-    UQ -->|"Current Question"| PROMPT
-    PROMPT -->|"5. Assembled Messages"| LLM
-    LLM -->|"6. Grounded Answer"| RESP
+
+    EMB -->|"768-d Embedding"| VEC
+    VEC -->|"Top-K Candidate Chunks"| RERANK
+    RERANK -->|"Top Re-ranked Context"| PROMPT
+
+    PROMPT -->|"Assembled Messages"| LLM
     LLM -.->|"Record User & Assistant Turn"| HIST
+    LLM -->|"Synthesized Response"| RESP
 ```
 
 1. **Dense Vector Retrieval**: Queries are embedded using `nomic-embed-text` and compared against stored chunk embeddings using cosine similarity (`1 - (c.embedding <=> vector)`).
