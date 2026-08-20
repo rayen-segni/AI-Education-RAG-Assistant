@@ -1,6 +1,6 @@
 import uuid
 
-from app.services import llm_service, embedding_service
+from app.services import llm_service
 from app.retrieval import retriever, reranker
 from app.config import settings
 
@@ -17,12 +17,14 @@ async def chat(msg: str, conversation_id: str | None = None) -> dict :
 
     history = CONVERSATIONS[conversation_id]
 
-    # 2. Retrieve relevant chunks for current question
+    # 2.a Retrieve relevant chunks for current question
     infos = await retriever.retrieval(msg)
 
     context_arr = [chunk[2] for chunk in infos]
     sources = [chunk[4]["source"] for chunk in infos if "source" in chunk[4]]
     subjects = [chunk[4]["subject"] for chunk in infos if "subject" in chunk[4]]
+
+    # 2.b Reranking
     renranked_context = await reranker.reranker(msg, context_arr)
     context = "\n".join([chunk["candidate"] for chunk in renranked_context])
 
@@ -63,7 +65,5 @@ async def chat(msg: str, conversation_id: str | None = None) -> dict :
             "sources": list(dict.fromkeys(sources)),
             "subjects": list(dict.fromkeys(subjects))
         }
-
-
 
 

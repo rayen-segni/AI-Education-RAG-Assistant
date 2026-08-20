@@ -7,13 +7,6 @@ from app.config import settings
 
 MODEL: CrossEncoder | None = None
 
-def load_model():
-    """Load reranker weights into memory."""
-    global MODEL
-    if MODEL is None:
-        print("Loading CrossEncoder reranker model...")
-        MODEL = CrossEncoder(settings.CROSS_ENCODER_MODEL, device="cpu")
-
 async def reranker(
     query: str,
     candidates: list[str],
@@ -42,3 +35,13 @@ async def reranker(
         }
         for candidate, score in ranked[:top_k]
     ]
+
+
+
+def load_model():
+    """Load reranker weights into memory."""
+    global MODEL
+    if MODEL is None:
+        print("Loading CrossEncoder reranker model...")
+        MODEL = CrossEncoder(settings.CROSS_ENCODER_MODEL, device="cpu")
+

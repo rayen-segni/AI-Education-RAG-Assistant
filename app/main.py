@@ -11,16 +11,8 @@ from app.services import embedding_service
 
 @asynccontextmanager
 async def lifesapn(app: FastAPI):
-    # --- Startup: Load model weights before accepting traffic ---
-    # print("🚀 Starting up: Loading models into memory...")
-    # reranker.load_model()
-    # await embedding_service.warmup()
-    # print("✅ All models ready!")
-
     yield
 
-    # --- Shutdown: Cleanup if needed ---
-    print("🛑 Server shutting down...")
 
 app = FastAPI(lifespan=lifesapn)
 
