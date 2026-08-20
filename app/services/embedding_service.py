@@ -31,3 +31,8 @@ async def embedding(text: str | list[str]) -> Sequence[Sequence[float]]:
 
     return response.embeddings
 
+async def warmup():
+    """Pre-load the embedding model weights into Ollama memory."""
+    print("Warming up Ollama embedding model...")
+    await embedding("warmup")
+

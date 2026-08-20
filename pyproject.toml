@@ -26,6 +26,8 @@ dependencies = [
     "tiktoken>=0.13.0",
 ]
 
+[tool.fastapi]
+entrypoint = "app.main:app"
 
 [tool.setuptools.packages.find]
 where = ["."]
